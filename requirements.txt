@@ -1,0 +1,12 @@
+fastapi
+sqlalchemy
+pyodbc
+uvicorn
+pydantic
+passlib[bcrypt]
+pyjwt
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+requests-oauthlib
+python-dotenv
