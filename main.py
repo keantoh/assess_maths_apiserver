@@ -1,6 +1,6 @@
 import random
 import string
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, Request, status
 import jwt
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError, OperationalError
@@ -15,6 +15,7 @@ import os
 from dotenv import load_dotenv
 
 app = FastAPI()
+logging.info("FastAPI application has started")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 load_dotenv()
@@ -23,6 +24,12 @@ jwt_algorithm = os.getenv('JWT_ALGORITHM')
 jwt_expire_minutes = int(os.getenv('JWT_EXPIRE_MINUTES'))
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    logging.info(f"Received request: {request.method} {request.url}")
+    response = await call_next(request)
+    return response
 
 @app.post("/signup", status_code=status.HTTP_201_CREATED)
 async def signup(user: UserCreate, db: Session = Depends(get_db)):

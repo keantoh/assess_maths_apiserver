@@ -1,3 +1,4 @@
+import logging
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import urllib
@@ -27,6 +28,7 @@ engine = create_engine(conn_string, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_db():
+    logging.info("get_db called")
     db = SessionLocal()
     try:
         yield db
