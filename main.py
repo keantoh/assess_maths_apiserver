@@ -22,6 +22,25 @@ jwt_secret = os.getenv('JWT_SECRET')
 jwt_algorithm = os.getenv('JWT_ALGORITHM')
 jwt_expire_minutes = int(os.getenv('JWT_EXPIRE_MINUTES'))
 
+def get_user_id_from_request(request: Request):
+    try:
+        authorization_header = request.headers.get("Authorization")
+        if authorization_header is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authorization header missing")
+
+        token_prefix, token = authorization_header.split(" ", 1)
+        if token_prefix.lower() != "bearer":
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token prefix")
+        
+        payload = jwt.decode(token, jwt_secret, algorithms=[jwt_algorithm])
+        user_id = payload.get("userId")
+        return user_id
+    
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
 @app.post("/signup", status_code=status.HTTP_201_CREATED)
 async def signup(user: UserCreate, db: Session = Depends(get_db)):
     try:
@@ -112,9 +131,10 @@ async def login(user: UserLogin, db: Session = Depends(get_db)):
 @app.post("/validate-token", response_model=UserLoginResponse, status_code=status.HTTP_200_OK)
 async def validate_token(request: UserToken, db: Session = Depends(get_db)):
     try:
-        userId = jwt.decode(request.token, jwt_secret, algorithms=jwt_algorithm)['userId']
-
-        retrieved_user = db.query(User).filter(User.userId == userId).one_or_none()
+        payload = jwt.decode(request.token, jwt_secret, algorithms=[jwt_algorithm])
+        user_id = payload.get("userId")
+        retrieved_user = db.query(User).filter(User.userId == user_id).one_or_none()
+        
         if retrieved_user is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
@@ -147,8 +167,12 @@ async def validate_token(request: UserToken, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
 @app.put("/update_user_details/{userId}", status_code=status.HTTP_200_OK)
-async def update_user_details(userId: str, user: UserDetailsUpdate, db: Session = Depends(get_db)):
+async def update_user_details(request: Request, userId: str, user: UserDetailsUpdate, db: Session = Depends(get_db)):
     try:
+        token_user_id = get_user_id_from_request(request)
+        if token_user_id != userId:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
         db_user = db.query(User).filter(User.userId == userId).first()
     
         if not db_user:
@@ -328,8 +352,13 @@ async def deleteUserAccount(user: UserDelete, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
 @app.post("/search_users", response_model=List[UserSearchResponse], status_code=status.HTTP_200_OK)
-async def login(searchQuery: SearchQuery, db: Session = Depends(get_db)):
+async def login(request: Request, searchQuery: SearchQuery, db: Session = Depends(get_db)):
     try:
+        user_id = get_user_id_from_request(request)
+        user = db.query(User).filter(User.userId == user_id).one_or_none()
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
         query = searchQuery.query.lower()
 
         users = db.query(User).filter(
@@ -366,16 +395,19 @@ async def login(searchQuery: SearchQuery, db: Session = Depends(get_db)):
     except SQLAlchemyError as db_exc:
         logging.error("Database error: %s", str(db_exc))
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
-
     except Exception as e:
         logging.error("Unexpected error: %s", str(e))
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
 
 @app.post("/delete_user", status_code=status.HTTP_200_OK)
-async def login(user: DeleteUser, db: Session = Depends(get_db)):
+async def login(request: Request, user: DeleteUser, db: Session = Depends(get_db)):
     try:
-
+        user_id = get_user_id_from_request(request)
+        user = db.query(User).filter(User.userId == user_id).one_or_none()
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        
         retrieved_user = db.query(User).filter(User.userId == user.userId).one_or_none()
         if retrieved_user is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -400,8 +432,13 @@ async def login(user: DeleteUser, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
 @app.post("/child", response_model=ChildResponse, status_code=status.HTTP_201_CREATED)
-async def add_child(child: ChildCreate, db: Session = Depends(get_db)):
+async def add_child(request: Request, child: ChildCreate, db: Session = Depends(get_db)):
     try:
+        user_id = get_user_id_from_request(request)
+        user = db.query(User).filter(User.userId == user_id).one_or_none()
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        
         new_child = Child(
             parentId=child.parentId,
             name=child.name,
@@ -445,8 +482,13 @@ async def add_child(child: ChildCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred")
     
 @app.get("/child/{userId}", response_model=List[ChildResponse], status_code=status.HTTP_200_OK)
-async def get_children(userId: str, db: Session = Depends(get_db)):
+async def get_children(request: Request, userId: str, db: Session = Depends(get_db)):
     try:
+        user_id = get_user_id_from_request(request)
+        user = db.query(User).filter(User.userId == user_id).one_or_none()
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        
         children = db.query(Child).filter(Child.parentId == userId).all()
         if not children:
             return []
@@ -456,9 +498,13 @@ async def get_children(userId: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
     
 @app.put("/update_child/{childId}", status_code=status.HTTP_200_OK)
-async def update_child(childId: int, child: ChildResponse, db: Session = Depends(get_db)):
+async def update_child(request: Request, childId: int, child: ChildResponse, db: Session = Depends(get_db)):
     try:
-
+        user_id = get_user_id_from_request(request)
+        user = db.query(User).filter(User.userId == user_id).one_or_none()
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        
         db_child = db.query(Child).filter(Child.childId == childId).first()
     
         if not db_child:
@@ -490,8 +536,13 @@ async def update_child(childId: int, child: ChildResponse, db: Session = Depends
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred")
     
 @app.delete("/delete_child/{childId}", status_code=status.HTTP_200_OK)
-async def delete_child(childId: int, db: Session = Depends(get_db)):
+async def delete_child(request: Request, childId: int, db: Session = Depends(get_db)):
     try:
+        user_id = get_user_id_from_request(request)
+        user = db.query(User).filter(User.userId == user_id).one_or_none()
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        
         db_child = db.query(Child).filter(Child.childId == childId).first()
     
         if not db_child:
