@@ -15,21 +15,12 @@ import os
 from dotenv import load_dotenv
 
 app = FastAPI()
-logging.info("FastAPI application has started")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 load_dotenv()
 jwt_secret = os.getenv('JWT_SECRET')
 jwt_algorithm = os.getenv('JWT_ALGORITHM')
 jwt_expire_minutes = int(os.getenv('JWT_EXPIRE_MINUTES'))
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    logging.info(f"Received request: {request.method} {request.url}")
-    response = await call_next(request)
-    return response
 
 @app.post("/signup", status_code=status.HTTP_201_CREATED)
 async def signup(user: UserCreate, db: Session = Depends(get_db)):
@@ -82,14 +73,11 @@ async def signup(user: UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/login", response_model=UserLoginResponse, status_code=status.HTTP_200_OK)
 async def login(user: UserLogin, db: Session = Depends(get_db)):
-    logging.info("Login endpoint called")
     try:
         retrieved_user = db.query(User).filter(User.email == user.email).one_or_none()
         if retrieved_user is None:
-            logging.info("no user")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid credentials")
 
-        logging.info("user found")
         if not pwd_context.verify(user.password, retrieved_user.password):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid credentials")
         
