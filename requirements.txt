@@ -3,7 +3,6 @@ sqlalchemy
 pyodbc
 uvicorn
 pydantic
-bcrypt==4.0.1
 passlib[bcrypt]
 pyjwt
 google-auth
