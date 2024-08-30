@@ -22,6 +22,8 @@ jwt_secret = os.getenv('JWT_SECRET')
 jwt_algorithm = os.getenv('JWT_ALGORITHM')
 jwt_expire_minutes = int(os.getenv('JWT_EXPIRE_MINUTES'))
 
+logging.basicConfig(level=logging.INFO)
+
 def get_user_id_from_request(request: Request):
     try:
         authorization_header = request.headers.get("Authorization")
@@ -470,14 +472,13 @@ async def add_child(request: Request, child: ChildCreate, db: Session = Depends(
 
         response_child = ChildResponse(
             childId=new_child.childId,
-            parentId=new_child.parentId,
             name=new_child.name,
             gender=new_child.gender,
             dob=new_child.dob,
             favColour=new_child.favColour,
             favAnimal=new_child.favAnimal
         )
-        logging.info(f"Child add successful: ID {response_child.parentId} (Name: {response_child.name}) (ChildID: {response_child.childId}).")
+        logging.info(f"Child add successful: ID {new_child.parentId} (Name: {response_child.name}) (ChildID: {response_child.childId}).")
 
         return response_child
     except IntegrityError as e:
