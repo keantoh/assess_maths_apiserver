@@ -125,6 +125,7 @@ class ChildResponse(BaseModel):
 
     class Config:
         orm_mode = True
+        from_attributes = True 
 
 class Question(Base):
     __tablename__ = 'Question'
