@@ -60,6 +60,8 @@ async def signup(user: UserCreate, db: Session = Depends(get_db)):
         jwt_body = {"userId": new_user.userId, "exp": datetime.now() + timedelta(minutes=jwt_expire_minutes)}
         encoded_jwt = jwt.encode(jwt_body, jwt_secret, algorithm=jwt_algorithm)
 
+        logging.info(f"Signup successful: User {new_user.email} (ID: {new_user.userId}).")
+
         return {
             "userId": new_user.userId,
             "email": new_user.email,
@@ -103,6 +105,8 @@ async def login(user: UserLogin, db: Session = Depends(get_db)):
         jwt_body = {"userId": retrieved_user.userId, "exp": datetime.now() + timedelta(minutes=jwt_expire_minutes)}
         encoded_jwt = jwt.encode(jwt_body, jwt_secret, algorithm=jwt_algorithm)
 
+        logging.info(f"Login successful: User {retrieved_user.email} (ID: {retrieved_user.userId}).")
+
         return {
             "userId": retrieved_user.userId,
             "email": retrieved_user.email,
@@ -114,7 +118,7 @@ async def login(user: UserLogin, db: Session = Depends(get_db)):
             "token": encoded_jwt
         }
     except HTTPException as http_exc:
-        logging.info(http_exc)
+        logging.error(http_exc)
         raise http_exc
     except OperationalError as e:
         db.rollback()
@@ -184,6 +188,8 @@ async def update_user_details(request: Request, userId: str, user: UserDetailsUp
         db_user.updatedAt = datetime.now()
         db.commit()
 
+        logging.info(f"Update user successful: User {db_user.email} (ID: {db_user.userId}).")
+
         return {"detail": "User updated successfully"}
     except IntegrityError as e: 
         db.rollback()
@@ -223,6 +229,8 @@ async def change_user_password(userId: str, user: UserPasswordChange, db: Sessio
         retrieved_user.password = new_hashed_password
         retrieved_user.updatedAt = datetime.now()
         db.commit()
+
+        logging.info(f"Changed password successful: ID {userId}.")
 
         return {"detail": "Password changed successfully"}
 
@@ -265,6 +273,8 @@ async def send_password_token(userEmail: UserEmail, db: Session = Depends(get_db
 
         send_email(subject, text, email)
 
+        logging.info(f"Reset token sent successful: User {userEmail.email}.")
+
         return {"detail": "Token sent if email exists"}
 
     except OperationalError as e:
@@ -303,6 +313,8 @@ async def update_user_password(user: UserPasswordUpdate, db: Session = Depends(g
         retrieved_user.updatedAt = datetime.now()
         db.commit()
 
+        logging.info(f"Password changed successful: User {retrieved_user.email} (ID: {retrieved_user.userId}).")
+
         return {"detail": "Password changed successfully"}
 
     except OperationalError as e:
@@ -335,6 +347,8 @@ async def deleteUserAccount(user: UserDelete, db: Session = Depends(get_db)):
         
         db.query(User).filter(User.userId == user.userId).delete()
         db.commit()
+
+        logging.info(f"Account delete successful: User {retrieved_user.email} (ID: {retrieved_user.userId}).")
 
         return {"detail": "Account delete successfully"}
 
@@ -415,6 +429,8 @@ async def login(request: Request, user: DeleteUser, db: Session = Depends(get_db
         db.query(User).filter(User.userId == user.userId).delete()
         db.commit()
 
+        logging.info(f"User delete successful: User {retrieved_user.email} (ID: {retrieved_user.userId}).")
+
         return {"detail": "User delete successfully"}
     
     except HTTPException as http_exc:
@@ -461,6 +477,8 @@ async def add_child(request: Request, child: ChildCreate, db: Session = Depends(
             favColour=new_child.favColour,
             favAnimal=new_child.favAnimal
         )
+        logging.info(f"Child add successful: ID {response_child.parentId} (Name: {response_child.name}) (ChildID: {response_child.childId}).")
+
         return response_child
     except IntegrityError as e:
         db.rollback()
@@ -492,6 +510,8 @@ async def get_children(request: Request, userId: str, db: Session = Depends(get_
         children = db.query(Child).filter(Child.parentId == userId).all()
         if not children:
             return []
+        logging.info(f"Child retrieve successful: User {user.email} (ID: {user.userId}).")
+
         return [ChildResponse.from_orm(child) for child in children]
     except Exception as e:
         logging.error("Unexpected error: %s", str(e))
@@ -515,6 +535,8 @@ async def update_child(request: Request, childId: int, child: ChildResponse, db:
         db_child.favAnimal = child.favAnimal
         db_child.favColour = child.favColour
         db.commit()
+
+        logging.info(f"Child update successful: Child {child.name} (ChildID: {child.childId}).")
 
         return {"detail": "Child updated successfully"}
     except OperationalError as e:
@@ -550,6 +572,8 @@ async def delete_child(request: Request, childId: int, db: Session = Depends(get
         db.query(Child).filter(Child.childId == childId).delete()
         db.commit()
 
+        logging.info(f"Child delete successful: ID {user_id} (ChildID: {childId}).")
+
         return {"detail": "Child deleted successfully"}
     except OperationalError as e:
         db.rollback()
@@ -583,6 +607,8 @@ async def add_result(result: ResultCreate, db: Session = Depends(get_db)):
         )
         db.add(new_result)
         db.commit()
+
+        logging.info(f"Result add successful: ChildID {result.childId} (QuestionID: {result.questionId}).")
 
         return {"detail": "Result added successfully"}
     except HTTPException as http_exc:
