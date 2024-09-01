@@ -14,9 +14,10 @@ gmail_client_secret = os.getenv('GMAIL_CLIENT_SECRET')
 TOKEN_URI = 'https://oauth2.googleapis.com/token'
 MY_EMAIL = 'assess.maths.app@gmail.com'
 
+
 def get_oauth2_token():
     creds = Credentials(
-        None, 
+        None,
         refresh_token=gmail_refresh_token,
         token_uri=TOKEN_URI,
         client_id=gmail_client_id,
@@ -30,11 +31,14 @@ def get_oauth2_token():
 
     return creds.token
 
+
 def generate_oauth2_string(access_token, as_base64=False) -> str:
     auth_string = 'user=' + MY_EMAIL + '\1auth=Bearer ' + access_token + '\1\1'
     if as_base64:
-        auth_string = base64.b64encode(auth_string.encode('ascii')).decode('ascii')
+        auth_string = base64.b64encode(
+            auth_string.encode('ascii')).decode('ascii')
     return auth_string
+
 
 def send_email(subject, msg, recipient):
     access_token = get_oauth2_token()

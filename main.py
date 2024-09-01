@@ -24,24 +24,30 @@ jwt_expire_minutes = int(os.getenv('JWT_EXPIRE_MINUTES'))
 
 logging.basicConfig(level=logging.INFO)
 
+
 def get_user_id_from_request(request: Request):
     try:
         authorization_header = request.headers.get("Authorization")
         if authorization_header is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authorization header missing")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Authorization header missing")
 
         token_prefix, token = authorization_header.split(" ", 1)
         if token_prefix.lower() != "bearer":
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token prefix")
-        
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token prefix")
+
         payload = jwt.decode(token, jwt_secret, algorithms=[jwt_algorithm])
         user_id = payload.get("userId")
         return user_id
-    
+
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
 
 @app.post("/signup", status_code=status.HTTP_201_CREATED)
 async def signup(user: UserCreate, db: Session = Depends(get_db)):
@@ -59,10 +65,12 @@ async def signup(user: UserCreate, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(new_user)
 
-        jwt_body = {"userId": new_user.userId, "exp": datetime.now() + timedelta(minutes=jwt_expire_minutes)}
+        jwt_body = {"userId": new_user.userId, "exp": datetime.now(
+        ) + timedelta(minutes=jwt_expire_minutes)}
         encoded_jwt = jwt.encode(jwt_body, jwt_secret, algorithm=jwt_algorithm)
 
-        logging.info(f"Signup successful: User {new_user.email} (ID: {new_user.userId}).")
+        logging.info(
+            f"Signup successful: User {new_user.email} (ID: {new_user.userId}).")
 
         return {
             "userId": new_user.userId,
@@ -74,40 +82,50 @@ async def signup(user: UserCreate, db: Session = Depends(get_db)):
             "isActive": new_user.isActive,
             "token": encoded_jwt
         }
-    except IntegrityError as e: 
+    except IntegrityError as e:
         db.rollback()
         logging.error(f"Integrity error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Integrity error: Possible constraint violation")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail="Integrity error: Possible constraint violation")
 
     except OperationalError as e:
         db.rollback()
         logging.error(f"Operational error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
 
     except ValueError as e:
         db.rollback()
         logging.error(f"Value error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     except Exception as e:
         db.rollback()
         logging.error(f"An unexpected error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="An unexpected error occurred")
+
 
 @app.post("/login", response_model=UserLoginResponse, status_code=status.HTTP_200_OK)
 async def login(user: UserLogin, db: Session = Depends(get_db)):
     try:
-        retrieved_user = db.query(User).filter(User.email == user.email).one_or_none()
+        retrieved_user = db.query(User).filter(
+            User.email == user.email).one_or_none()
         if retrieved_user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid credentials")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Invalid credentials")
 
         if not pwd_context.verify(user.password, retrieved_user.password):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid credentials")
-        
-        jwt_body = {"userId": retrieved_user.userId, "exp": datetime.now() + timedelta(minutes=jwt_expire_minutes)}
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Invalid credentials")
+
+        jwt_body = {"userId": retrieved_user.userId,
+                    "exp": datetime.now() + timedelta(minutes=jwt_expire_minutes)}
         encoded_jwt = jwt.encode(jwt_body, jwt_secret, algorithm=jwt_algorithm)
 
-        logging.info(f"Login successful: User {retrieved_user.email} (ID: {retrieved_user.userId}).")
+        logging.info(
+            f"Login successful: User {retrieved_user.email} (ID: {retrieved_user.userId}).")
 
         return {
             "userId": retrieved_user.userId,
@@ -125,24 +143,31 @@ async def login(user: UserLogin, db: Session = Depends(get_db)):
     except OperationalError as e:
         db.rollback()
         logging.error(f"Operational error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
     except SQLAlchemyError as db_exc:
         logging.error("Database error: %s", str(db_exc))
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
 
     except Exception as e:
         logging.error("Unexpected error: %s", str(e))
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
 @app.post("/validate-token", response_model=UserLoginResponse, status_code=status.HTTP_200_OK)
 async def validate_token(request: UserToken, db: Session = Depends(get_db)):
     try:
-        payload = jwt.decode(request.token, jwt_secret, algorithms=[jwt_algorithm])
+        payload = jwt.decode(request.token, jwt_secret,
+                             algorithms=[jwt_algorithm])
         user_id = payload.get("userId")
-        retrieved_user = db.query(User).filter(User.userId == user_id).one_or_none()
-        
+        retrieved_user = db.query(User).filter(
+            User.userId == user_id).one_or_none()
+
         if retrieved_user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
         return {
             "userId": retrieved_user.userId,
@@ -155,32 +180,39 @@ async def validate_token(request: UserToken, db: Session = Depends(get_db)):
             "token": request.token
         }
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     except HTTPException as http_exc:
         raise http_exc
     except OperationalError as e:
         db.rollback()
         logging.error(f"Operational error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
     except SQLAlchemyError as db_exc:
         logging.error("Database error: %s", str(db_exc))
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
 
     except Exception as e:
         logging.error("Unexpected error: %s", str(e))
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
 @app.put("/update_user_details/{userId}", status_code=status.HTTP_200_OK)
 async def update_user_details(request: Request, userId: str, user: UserDetailsUpdate, db: Session = Depends(get_db)):
     try:
         token_user_id = get_user_id_from_request(request)
         if token_user_id != userId:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
         db_user = db.query(User).filter(User.userId == userId).first()
-    
+
         if not db_user:
             raise HTTPException(status_code=404, detail="User not found")
         db_user.email = user.email
@@ -190,43 +222,51 @@ async def update_user_details(request: Request, userId: str, user: UserDetailsUp
         db_user.updatedAt = datetime.now()
         db.commit()
 
-        logging.info(f"Update user successful: User {db_user.email} (ID: {db_user.userId}).")
+        logging.info(
+            f"Update user successful: User {db_user.email} (ID: {db_user.userId}).")
 
         return {"detail": "User updated successfully"}
-    except IntegrityError as e: 
+    except IntegrityError as e:
         db.rollback()
         logging.error(f"Integrity error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Integrity error: Possible constraint violation")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail="Integrity error: Possible constraint violation")
 
     except OperationalError as e:
         db.rollback()
         logging.error(f"Operational error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
 
     except ValueError as e:
         db.rollback()
         logging.error(f"Value error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
     except HTTPException as http_exc:
         raise http_exc
 
     except Exception as e:
         db.rollback()
         logging.error(f"An unexpected error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred")
-    
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="An unexpected error occurred")
+
+
 @app.put("/change_user_password/{userId}", status_code=status.HTTP_200_OK)
 async def change_user_password(userId: str, user: UserPasswordChange, db: Session = Depends(get_db)):
     try:
         retrieved_user = db.query(User).filter(User.userId == userId).first()
 
         if retrieved_user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
         if not pwd_context.verify(user.password, retrieved_user.password):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid password")
-        
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid password")
+
         new_hashed_password = pwd_context.hash(user.newPassword)
         retrieved_user.password = new_hashed_password
         retrieved_user.updatedAt = datetime.now()
@@ -239,21 +279,25 @@ async def change_user_password(userId: str, user: UserPasswordChange, db: Sessio
     except OperationalError as e:
         db.rollback()
         logging.error(f"Operational error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
 
     except ValueError as e:
         db.rollback()
         logging.error(f"Value error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
     except HTTPException as http_exc:
         raise http_exc
 
     except Exception as e:
         db.rollback()
         logging.error(f"An unexpected error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred")
-    
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="An unexpected error occurred")
+
+
 @app.put("/send_password_token", status_code=status.HTTP_200_OK)
 async def send_password_token(userEmail: UserEmail, db: Session = Depends(get_db)):
     try:
@@ -282,32 +326,39 @@ async def send_password_token(userEmail: UserEmail, db: Session = Depends(get_db
     except OperationalError as e:
         db.rollback()
         logging.error(f"Operational error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
 
     except ValueError as e:
         db.rollback()
         logging.error(f"Value error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
     except HTTPException as http_exc:
         raise http_exc
 
     except Exception as e:
         db.rollback()
         logging.error(f"An unexpected error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred")
-    
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="An unexpected error occurred")
+
+
 @app.put("/update_user_password", status_code=status.HTTP_200_OK)
 async def update_user_password(user: UserPasswordUpdate, db: Session = Depends(get_db)):
     try:
-        retrieved_user = db.query(User).filter(User.email == user.email).first()
+        retrieved_user = db.query(User).filter(
+            User.email == user.email).first()
 
         if retrieved_user is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email/token")
-        
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email/token")
+
         if retrieved_user.passwordToken != user.token or datetime.now() > retrieved_user.tokenExpiry:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email/token")
-        
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email/token")
+
         new_hashed_password = pwd_context.hash(user.newPassword)
         retrieved_user.password = new_hashed_password
         retrieved_user.passwordToken = None
@@ -315,42 +366,51 @@ async def update_user_password(user: UserPasswordUpdate, db: Session = Depends(g
         retrieved_user.updatedAt = datetime.now()
         db.commit()
 
-        logging.info(f"Password changed successful: User {retrieved_user.email} (ID: {retrieved_user.userId}).")
+        logging.info(
+            f"Password changed successful: User {retrieved_user.email} (ID: {retrieved_user.userId}).")
 
         return {"detail": "Password changed successfully"}
 
     except OperationalError as e:
         db.rollback()
         logging.error(f"Operational error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
 
     except ValueError as e:
         db.rollback()
         logging.error(f"Value error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
     except HTTPException as http_exc:
         raise http_exc
 
     except Exception as e:
         db.rollback()
         logging.error(f"An unexpected error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="An unexpected error occurred")
+
 
 @app.post("/delete_user_account", status_code=status.HTTP_200_OK)
 async def deleteUserAccount(user: UserDelete, db: Session = Depends(get_db)):
     try:
-        retrieved_user = db.query(User).filter(User.userId == user.userId).one_or_none()
+        retrieved_user = db.query(User).filter(
+            User.userId == user.userId).one_or_none()
         if retrieved_user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
         if not pwd_context.verify(user.password, retrieved_user.password):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid password")
-        
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid password")
+
         db.query(User).filter(User.userId == user.userId).delete()
         db.commit()
 
-        logging.info(f"Account delete successful: User {retrieved_user.email} (ID: {retrieved_user.userId}).")
+        logging.info(
+            f"Account delete successful: User {retrieved_user.email} (ID: {retrieved_user.userId}).")
 
         return {"detail": "Account delete successfully"}
 
@@ -359,22 +419,27 @@ async def deleteUserAccount(user: UserDelete, db: Session = Depends(get_db)):
     except OperationalError as e:
         db.rollback()
         logging.error(f"Operational error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
     except SQLAlchemyError as db_exc:
         logging.error("Database error: %s", str(db_exc))
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
     except Exception as e:
         logging.error("Unexpected error: %s", str(e))
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
 @app.post("/search_users", response_model=List[UserSearchResponse], status_code=status.HTTP_200_OK)
 async def login(request: Request, searchQuery: SearchQuery, db: Session = Depends(get_db)):
     try:
         user_id = get_user_id_from_request(request)
         user = db.query(User).filter(User.userId == user_id).one_or_none()
         if user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
         query = searchQuery.query.lower()
 
         users = db.query(User).filter(
@@ -384,7 +449,8 @@ async def login(request: Request, searchQuery: SearchQuery, db: Session = Depend
         ).limit(20).all()
 
         if not users:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No users found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="No users found")
 
         user_responses = [
             UserSearchResponse(
@@ -401,20 +467,23 @@ async def login(request: Request, searchQuery: SearchQuery, db: Session = Depend
         ]
 
         return user_responses
-    
+
     except HTTPException as http_exc:
         raise http_exc
     except OperationalError as e:
         db.rollback()
         logging.error(f"Operational error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
     except SQLAlchemyError as db_exc:
         logging.error("Database error: %s", str(db_exc))
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
     except Exception as e:
         logging.error("Unexpected error: %s", str(e))
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
 
 @app.post("/delete_user", status_code=status.HTTP_200_OK)
 async def login(request: Request, user: DeleteUser, db: Session = Depends(get_db)):
@@ -422,41 +491,50 @@ async def login(request: Request, user: DeleteUser, db: Session = Depends(get_db
         user_id = get_user_id_from_request(request)
         user = db.query(User).filter(User.userId == user_id).one_or_none()
         if user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        
-        retrieved_user = db.query(User).filter(User.userId == user.userId).one_or_none()
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+        retrieved_user = db.query(User).filter(
+            User.userId == user.userId).one_or_none()
         if retrieved_user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
         db.query(User).filter(User.userId == user.userId).delete()
         db.commit()
 
-        logging.info(f"User delete successful: User {retrieved_user.email} (ID: {retrieved_user.userId}).")
+        logging.info(
+            f"User delete successful: User {retrieved_user.email} (ID: {retrieved_user.userId}).")
 
         return {"detail": "User delete successfully"}
-    
+
     except HTTPException as http_exc:
         raise http_exc
     except OperationalError as e:
         db.rollback()
         logging.error(f"Operational error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
     except SQLAlchemyError as db_exc:
         logging.error("Database error: %s", str(db_exc))
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
 
     except Exception as e:
         logging.error("Unexpected error: %s", str(e))
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
 @app.post("/child", response_model=ChildResponse, status_code=status.HTTP_201_CREATED)
 async def add_child(request: Request, child: ChildCreate, db: Session = Depends(get_db)):
     try:
         user_id = get_user_id_from_request(request)
         user = db.query(User).filter(User.userId == user_id).one_or_none()
         if user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
         new_child = Child(
             parentId=child.parentId,
             name=child.name,
@@ -478,56 +556,66 @@ async def add_child(request: Request, child: ChildCreate, db: Session = Depends(
             favColour=new_child.favColour,
             favAnimal=new_child.favAnimal
         )
-        logging.info(f"Child add successful: ID {new_child.parentId} (Name: {response_child.name}) (ChildID: {response_child.childId}).")
+        logging.info(
+            f"Child add successful: ID {new_child.parentId} (Name: {response_child.name}) (ChildID: {response_child.childId}).")
 
         return response_child
     except IntegrityError as e:
         db.rollback()
         logging.error(f"Integrity error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Integrity error: Possible constraint violation")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail="Integrity error: Possible constraint violation")
 
     except OperationalError as e:
         db.rollback()
         logging.error(f"Operational error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
 
     except ValueError as e:
         db.rollback()
         logging.error(f"Value error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         db.rollback()
         logging.error(f"An unexpected error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred")
-    
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="An unexpected error occurred")
+
+
 @app.get("/child/{userId}", response_model=List[ChildResponse], status_code=status.HTTP_200_OK)
 async def get_children(request: Request, userId: str, db: Session = Depends(get_db)):
     try:
         user_id = get_user_id_from_request(request)
         user = db.query(User).filter(User.userId == user_id).one_or_none()
         if user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
         children = db.query(Child).filter(Child.parentId == userId).all()
         if not children:
             return []
-        logging.info(f"Child retrieve successful: User {user.email} (ID: {user.userId}).")
+        logging.info(
+            f"Child retrieve successful: User {user.email} (ID: {user.userId}).")
 
         return [ChildResponse.from_orm(child) for child in children]
     except Exception as e:
         logging.error("Unexpected error: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
-    
+
+
 @app.put("/update_child/{childId}", status_code=status.HTTP_200_OK)
 async def update_child(request: Request, childId: int, child: ChildResponse, db: Session = Depends(get_db)):
     try:
         user_id = get_user_id_from_request(request)
         user = db.query(User).filter(User.userId == user_id).one_or_none()
         if user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
         db_child = db.query(Child).filter(Child.childId == childId).first()
-    
+
         if not db_child:
             raise HTTPException(status_code=404, detail="Child not found")
         db_child.name = child.name
@@ -537,63 +625,73 @@ async def update_child(request: Request, childId: int, child: ChildResponse, db:
         db_child.favColour = child.favColour
         db.commit()
 
-        logging.info(f"Child update successful: Child {child.name} (ChildID: {child.childId}).")
+        logging.info(
+            f"Child update successful: Child {child.name} (ChildID: {child.childId}).")
 
         return {"detail": "Child updated successfully"}
     except OperationalError as e:
         db.rollback()
         logging.error(f"Operational error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
 
     except ValueError as e:
         db.rollback()
         logging.error(f"Value error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
     except HTTPException as http_exc:
         raise http_exc
 
     except Exception as e:
         db.rollback()
         logging.error(f"An unexpected error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred")
-    
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="An unexpected error occurred")
+
+
 @app.delete("/delete_child/{childId}", status_code=status.HTTP_200_OK)
 async def delete_child(request: Request, childId: int, db: Session = Depends(get_db)):
     try:
         user_id = get_user_id_from_request(request)
         user = db.query(User).filter(User.userId == user_id).one_or_none()
         if user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
         db_child = db.query(Child).filter(Child.childId == childId).first()
-    
+
         if not db_child:
             raise HTTPException(status_code=404, detail="Child not found")
         db.query(Child).filter(Child.childId == childId).delete()
         db.commit()
 
-        logging.info(f"Child delete successful: ID {user_id} (ChildID: {childId}).")
+        logging.info(
+            f"Child delete successful: ID {user_id} (ChildID: {childId}).")
 
         return {"detail": "Child deleted successfully"}
     except OperationalError as e:
         db.rollback()
         logging.error(f"Operational error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
 
     except ValueError as e:
         db.rollback()
         logging.error(f"Value error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
     except HTTPException as http_exc:
         raise http_exc
 
     except Exception as e:
         db.rollback()
         logging.error(f"An unexpected error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred")
-    
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="An unexpected error occurred")
+
 
 @app.post("/result", status_code=status.HTTP_201_CREATED)
 async def add_result(result: ResultCreate, db: Session = Depends(get_db)):
@@ -609,7 +707,8 @@ async def add_result(result: ResultCreate, db: Session = Depends(get_db)):
         db.add(new_result)
         db.commit()
 
-        logging.info(f"Result add successful: ChildID {result.childId} (QuestionID: {result.questionId}).")
+        logging.info(
+            f"Result add successful: ChildID {result.childId} (QuestionID: {result.questionId}).")
 
         return {"detail": "Result added successfully"}
     except HTTPException as http_exc:
@@ -617,11 +716,14 @@ async def add_result(result: ResultCreate, db: Session = Depends(get_db)):
     except OperationalError as e:
         db.rollback()
         logging.error(f"Operational error occurred: {e}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database operational error")
     except SQLAlchemyError as db_exc:
         logging.error("Database error: %s", str(db_exc))
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
 
     except Exception as e:
         logging.error("Unexpected error: %s", str(e))
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
