@@ -22,7 +22,15 @@ odbc_str = (
 )
 
 conn_string = f"mssql+pyodbc:///?odbc_connect={urllib.parse.quote_plus(odbc_str)}"
-engine = create_engine(conn_string, pool_pre_ping=True)
+engine = create_engine(
+    conn_string,
+    pool_size=50,  
+    max_overflow=20,  
+    pool_timeout=30,  
+    pool_recycle=900,  
+    echo=True, 
+    pool_pre_ping=True
+)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
