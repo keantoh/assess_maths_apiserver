@@ -468,8 +468,6 @@ async def login(request: Request, searchQuery: SearchQuery, db: Session = Depend
 
         return user_responses
 
-    except HTTPException as http_exc:
-        raise http_exc
     except OperationalError as e:
         db.rollback()
         logging.error(f"Operational error occurred: {e}")
@@ -479,6 +477,8 @@ async def login(request: Request, searchQuery: SearchQuery, db: Session = Depend
         logging.error("Database error: %s", str(db_exc))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
+    except HTTPException as http_exc:
+        raise http_exc
     except Exception as e:
         logging.error("Unexpected error: %s", str(e))
         raise HTTPException(
@@ -508,8 +508,6 @@ async def login(request: Request, user: DeleteUser, db: Session = Depends(get_db
 
         return {"detail": "User delete successfully"}
 
-    except HTTPException as http_exc:
-        raise http_exc
     except OperationalError as e:
         db.rollback()
         logging.error(f"Operational error occurred: {e}")
@@ -519,7 +517,8 @@ async def login(request: Request, user: DeleteUser, db: Session = Depends(get_db
         logging.error("Database error: %s", str(db_exc))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
-
+    except HTTPException as http_exc:
+        raise http_exc
     except Exception as e:
         logging.error("Unexpected error: %s", str(e))
         raise HTTPException(
@@ -560,6 +559,7 @@ async def add_child(request: Request, child: ChildCreate, db: Session = Depends(
             f"Child add successful: ID {new_child.parentId} (Name: {response_child.name}) (ChildID: {response_child.childId}).")
 
         return response_child
+
     except IntegrityError as e:
         db.rollback()
         logging.error(f"Integrity error occurred: {e}")
@@ -577,6 +577,8 @@ async def add_child(request: Request, child: ChildCreate, db: Session = Depends(
         logging.error(f"Value error occurred: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except HTTPException as http_exc:
+        raise http_exc
     except Exception as e:
         db.rollback()
         logging.error(f"An unexpected error occurred: {e}")
@@ -600,6 +602,8 @@ async def get_children(request: Request, userId: str, db: Session = Depends(get_
             f"Child retrieve successful: User {user.email} (ID: {user.userId}).")
 
         return [ChildResponse.from_orm(child) for child in children]
+    except HTTPException as http_exc:
+        raise http_exc
     except Exception as e:
         logging.error("Unexpected error: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
@@ -671,6 +675,7 @@ async def delete_child(request: Request, childId: int, db: Session = Depends(get
             f"Child delete successful: ID {user_id} (ChildID: {childId}).")
 
         return {"detail": "Child deleted successfully"}
+
     except OperationalError as e:
         db.rollback()
         logging.error(f"Operational error occurred: {e}")
