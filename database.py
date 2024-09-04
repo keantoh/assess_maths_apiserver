@@ -9,8 +9,8 @@ db_server = os.getenv('DB_SERVER')
 db_name = os.getenv('DB_NAME')
 db_user_id = os.getenv('DB_USER_ID')
 db_password = os.getenv('DB_PASSWORD')
-db_connection_pool_size = os.getenv('DB_CONNECTION_POOL_SIZE')
-db_connection_overflow = os.getenv('DB_CONNECTION_OVERFLOW')
+db_connection_pool_size = int(os.getenv('DB_CONNECTION_POOL_SIZE'))
+db_connection_overflow = int(os.getenv('DB_CONNECTION_OVERFLOW'))
 
 odbc_str = (
     "Driver={ODBC Driver 18 for SQL Server};"
