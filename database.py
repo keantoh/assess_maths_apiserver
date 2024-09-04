@@ -9,6 +9,8 @@ db_server = os.getenv('DB_SERVER')
 db_name = os.getenv('DB_NAME')
 db_user_id = os.getenv('DB_USER_ID')
 db_password = os.getenv('DB_PASSWORD')
+db_connection_pool_size = os.getenv('DB_CONNECTION_POOL_SIZE')
+db_connection_overflow = os.getenv('DB_CONNECTION_OVERFLOW')
 
 odbc_str = (
     "Driver={ODBC Driver 18 for SQL Server};"
@@ -24,8 +26,8 @@ odbc_str = (
 conn_string = f"mssql+pyodbc:///?odbc_connect={urllib.parse.quote_plus(odbc_str)}"
 engine = create_engine(
     conn_string,
-    pool_size=50,  
-    max_overflow=20,  
+    pool_size=db_connection_pool_size,  
+    max_overflow=db_connection_overflow,  
     pool_timeout=30,  
     pool_recycle=900,  
     echo=False, 
