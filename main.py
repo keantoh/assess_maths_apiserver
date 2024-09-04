@@ -22,7 +22,7 @@ jwt_secret = os.getenv('JWT_SECRET')
 jwt_algorithm = os.getenv('JWT_ALGORITHM')
 jwt_expire_minutes = int(os.getenv('JWT_EXPIRE_MINUTES'))
 
-# logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 
 
 def get_user_id_from_request(request: Request):
